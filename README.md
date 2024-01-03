@@ -1,1 +1,2 @@
-# House-prices
+# House prices
+This was a group project I worked on for my linear models class. We worked on two questions. The first one was understanding which variables have the strongest explanatory value on price. For this question we used a linear regression. The second question was understading what is typically observed in a waterfront house. For this we used a logistic regression. We took an inferential approach and not a predictive approach to these questions.
