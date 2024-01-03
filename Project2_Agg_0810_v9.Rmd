@@ -1,0 +1,1132 @@
+---
+title: "Project 2: Property Price and Waterfront Prediction in King County"
+output: pdf_document
+date: "2022-08-10"
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, messages = FALSE, warning = FALSE, fig.width=9, fig.height=5, fig.align="center")
+```
+
+```{r, include=FALSE}
+library(tidyverse)
+library(MASS)
+library(scales)
+library(vtable)
+library(lawstat)
+library(leaps)
+library(ROCR)
+library(GGally)
+library(faraway)
+```
+
+```{r}
+#install.packages("tidycensus")
+```
+
+```{r}
+#census data 
+#Refer - 
+#https://walker-data.com/tidycensus/articles/basic-usage.html
+
+install.packages("tidycensus")
+library("tidycensus")
+census_api_key("36631f4585d834329496f2ea71882882f2d2e522", install = TRUE, overwrite = TRUE)
+
+vt = get_acs(geography = "zcta", 
+              variables = c(medincome = "B19013_001"), 
+              state = "WA", 
+              year = 2014)
+
+head(vt)
+#estimate is median income
+
+```
+
+## Group number: 15
+
+## Group Members:
+
+-   Ashrith Herale
+-   Mauricio Mathey Garcia-Rada
+-   Taeyoon Kim
+-   Kyler Halat-Shafer
+
+## Section 1: Executive Summary
+
+### Findings:
+
+We conducted two different types of analysis, one where we were
+interested in having a better understanding on which characteristics of
+a home have the strongest influence on price and the other question is
+to see what the probability a house was a waterfront property or not.
+During our analysis we tested a multitude of variables to find those
+that could best answer those questions.
+
+What we ended up finding is that the best way to predict price is
+knowing the grade, square footage of the home, the income level of those
+purchasing the home, and whether or not that home is a waterfront
+property. The grade of a home is significant because it is on a scale
+where as the grade increases the building's construction and design
+increase. Therefore the better the grade, the higher quality the home,
+and the higher the price will end up being. Whereas, square footage, is
+the square feet of the living area. This variable is a bit different,
+intuitively the larger the home, the more it will cost, however, in
+certain sought after areas, even with less square feet your home can
+cost more, thinking of Downtown Manhattan versus a smaller suburb in the
+Mid-West United States. The other factor is whether or not the household
+has an income that his on par or above the national median, with those
+who make more than the median, their house price is typically higher.
+The final piece is that waterfront properties, again speaking about
+paying for location, is a strong predictor of price.
+
+Moreover, when trying to understand the probability of a home being a
+waterfront property or not our team found a similar, yet slightly
+different story. The key elements are price, the square footage of the
+living area, the median income bracket, and the year the house was
+built. It came to no surprise that waterfront properties cost more since
+they are sought after locations, which only allows those with higher
+incomes to be able to purchase those houses. The square feet of the
+living area was a bit surprising that those homes are not only have the
+view of the water, but are typically larger homes on average as well.
+The last piece which was the most surprising is that the year the home
+was built had an influence. When our team thought about this further,
+water front properties have been sought after for an extended time, not
+only for relaxation, but for transportation, therefore with Seattle
+being founded in 1851, some of the original homes in our data go back to
+1900. This indicates that these individuals who could get in early on
+waterfront properties did so.
+
+These questions and predictions have other larger implications that we
+were unable to test, but our team did think about the societal questions
+that come with those who can afford waterfront properties and how the
+quality of a home can impact price. These affects carry weight outside
+of this analysis, but we wanted to change the scope of the thought here
+when thinking about some of the variables we included in our models.
+
+## Section 2 : Variables, Questions, and Visualization
+
+### Background Information:
+
+#### The questions that we are trying to answer are:
+
+Linear Regression for Price:
+
+-   Motivation: We are looking at a linear regression to answer the
+    question: "What predictors have the strongest explanatory value on
+    price?" The reason why this question intrigues us and we believe is
+    important because in terms of a typical home we are told 'Location,
+    Location, Location', but is that true? Will location or other
+    factors have the largest impact on price?
+
+-   Detailed description on how linear regression answered this
+    question: After fitting the linear regression, we found that grade,
+    square foot of the living quarters, median income of the household
+    and whether the house is located near a waterfront or not were the best 
+    predictors for the price of the property. We found a positive 
+    linear relationship between price and each of the predictor variables.
+    This supports our initial expectation that higher income households with
+    high grade, higher square footage and waterfront properties will be
+    associated with high property valuations
+
+Logistical Regression for Waterfront:
+
+-   Motivation: Similar to our motivation in the linear regression, now
+    we are looking at a very specific location, waterfront properties;
+    are there characteristics that can tell you what is typically seen
+    in a waterfront property? Will price be a strong indicator that
+    people are willing to pay more for a desirable location?
+
+-   Detailed description on how logistical regression answered this
+    question: The logistical regression answers this question by using
+    four variables: price, square foot of the living quarters, the
+    median income of a household, and the year the home was built. Price
+    and median income are both strong predictors in our logistical
+    regression model, after testing numerous variables, this indicates
+    that location does demand a higher price. When thinking about the
+    year the home was built, our team suspects there is a latency affect
+    because those that had the capital to build near the lake did so
+    earlier since waterfront land is limited, supporting our original
+    question.
+
+#### Variables in the original data set:
+
+-   [**id**]{.underline}: Unique ID for each home sold
+-   [**date**]{.underline}: Date of the home sale
+-   [**price**]{.underline}: Price of each home sold
+-   [**bedrooms**]{.underline}: Number of bedrooms
+-   [**bathrooms**]{.underline}: Number of bathrooms, where .5 accounts
+    for a room with a toilet but no shower
+-   [**sqft_living**]{.underline}: Square footage of the apartments
+    interior living space
+-   [**sqft_lot**]{.underline}: Square footage of the land space
+-   [**floors**]{.underline}: Number of floors
+-   [**waterfront**]{.underline}: A dummy variable for whether the
+    apartment was overlooking the waterfront or not
+-   [**view**]{.underline}: An index from 0 to 4 of how good the view of
+    the property was
+-   [**condition**]{.underline}: An index from 1 to 5 on the condition
+    of the apartment,
+-   [**grade**]{.underline}: An index from 1 to 13, where 1-3 falls
+    short of building construction and design, 7 has an average level of
+    construction and design, and 11-13 have a high quality level of
+    construction and design.
+-   [**sqft_above**]{.underline}: The square footage of the interior
+    housing space that is above ground level
+-   [**sqft_basement**]{.underline}: The square footage of the interior
+    housing space that is below ground level
+-   [**yr_built**]{.underline}: The year the house was initially built
+-   [**yr_renovated**]{.underline}: The year of the house's last
+    renovation
+-   [**zipcode**]{.underline}: What zip code area the house is in
+-   [**lat**]{.underline}: Latitude
+-   [**long**]{.underline}: Longitude
+-   [**sqft_living15**]{.underline}: The square footage of interior
+    housing living space for the nearest 15 neighbors
+-   [**sqft_lot15**]{.underline}: The square footage of the land lots of
+    the nearest 15 neighbors
+
+#### Variables in the dataset we created:
+
+-   [**Median Income**]{.underline}: Is the median income associated
+    with that zip code.
+-   [**Bracket**]{.underline}: We then used this as a Medium or High
+    bracket, to have as a binary variable believing it would be more
+    impactful this way and could potentially be used in a logistical
+    regression.
+-   [**price_sqft**]{.underline}: Is price per square foot, this
+    variable takes the price and divides by the square foot of a
+    property, ultimately trying to control for large deviations based on
+    square foot or price.
+-   [**waterfront_fac**]{.underline}: Is the factored output of the data contained
+    in the "waterfront" column of the King County property dataset (csv). The
+    "Yes" represents a location overlooking the waterfront and "No" represents the opposite.
+-   [**income_level**]{.underline}: We divided the median income into brackets
+    of low, mid, and high. The "high" threshold is 10^5 or 100000 and the "mid"
+    threshold is 7*10^4 or 70000. 
+    
+#### Data Ingestion:
+
+```{r}
+kc_house_data <- read.csv("kc_house_data.csv", header=TRUE)
+```
+
+### Visualizations:
+
+```{r}
+data_all <- merge.data.frame(kc_house_data, brackets, by.x = "zipcode", by.y = "Zip code", all.x = TRUE)
+```
+
+```{r}
+vis_data <- data_all
+set.seed(1) ##for reproducibility to get the same split
+sample_vis<-sample.int(nrow(vis_data), floor(.80*nrow(vis_data)), replace = F)
+train_vis<-vis_data[sample_vis,] ##training data frame
+test_vis<-vis_data[-sample_vis,] ##test data frame
+```
+
+```{r}
+train_vis$price_sqft <- (train_vis$price/train_vis$sqft_living)
+```
+
+#### Transforming variables into factors where needed in order to produce:
+
+```{r}
+train_vis$waterfront<-factor(train_vis$waterfront)
+train_vis$view<-factor(train_vis$view)
+train_vis$grade<-factor(train_vis$grade)
+train_vis$bedrooms<-factor(train_vis$bedrooms)
+train_vis$condition<-factor(train_vis$condition)
+```
+
+#### Cleaning up the levels of the data to make the visualizations easier to understand:
+
+```{r}
+train_vis$bathrooms<-factor(train_vis$bathrooms)
+```
+
+```{r}
+levels(train_vis$bathrooms)
+```
+
+```{r}
+levels(train_vis$bathrooms) <- c(0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,6,6,6,6,7,7,8)
+levels(train_vis$bathrooms)
+```
+
+```{r}
+train_vis$floors<-factor(train_vis$floors)
+```
+
+```{r}
+levels(train_vis$floors)
+```
+
+```{r}
+levels(train_vis$floors) <- c(1,1,2,2,3,3)
+levels(train_vis$floors)
+```
+
+```{r}
+train_vis$yr_built_cat <- as.numeric(train_vis$yr_built)
+levels(train_vis$yr_built_cat)
+```
+
+```{r}
+train_vis$yr_built_cat <- cut(train_vis$yr_built_cat, breaks = c(1899, 1950, 1959, 1969, 1979, 1989,1999,2009,2015))
+levels(train_vis$yr_built_cat) <- c('Before 1950', '1950s','1960s','1970s','1980s','1990s','2000s','2010s')
+```
+
+#### Exploratory Data Analysis:
+
+When looking at waterfront, those with a waterfront view have a higher
+median value to their home than those without a waterfront view.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=waterfront, y=price, color = waterfront))+
+  geom_boxplot()+
+  theme_classic()+
+  scale_y_continuous(labels = dollar)+
+  labs(title="Figure 1: Waterfront by Price")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Price per square is much higher on average for waterfront properties
+than non-waterfront properties, which makes sense given price is
+typically higher and the square footage is marginally higher on average,
+increasing the price per square foot.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=waterfront, y=price_sqft, color = waterfront))+
+  geom_boxplot()+
+  scale_y_continuous(labels = dollar)+
+  labs(title="Figure 2: Waterfront by Price per Square Foot")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+It appears that waterfront properties are on average larger than those
+that are not waterfront properties, indicating this might be a good
+variable in predicting waterfront properties.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=waterfront, y=sqft_living, color = waterfront))+
+  geom_boxplot()+
+  labs(title="Figure 3: Waterfront by Square Foot")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+All waterfront properties have at least a 2 in the view, meaning these
+variables are associated with one another.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=waterfront, y=view, color = waterfront))+
+  geom_boxplot()+
+  labs(title="Figure 4: Waterfront by View")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+When looking at square foot living against price we realized that there
+would have to be a transformation in our regression models if we wanted
+to included square feet, which we assume is an influential variable.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=sqft_living, y=price, color = view))+
+  geom_point()+
+  facet_wrap(~waterfront)+
+  scale_y_continuous(labels = dollar)+
+  labs(title="Figure 5: Square foot by Price and View")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Latitude would have to be transformed or dropped from the analysis, this
+could be better captured by Zip code or another metric.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=lat, y=price))+
+  geom_point()+
+  scale_y_continuous(labels = dollar)+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+View appears to have an increasing value in median house price as the
+view gets better, this corresponds with believes we had before the
+analysis and can be useful in predicting price.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=view, y=price, color = view))+
+  geom_boxplot()+
+  scale_y_continuous(labels = dollar)+
+  labs(title="Figure 6: View by Price")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+For the price per square foot variable, it is still clear that as the
+view gets better the price per square foot increases.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=view, y=price_sqft, color = view))+
+  geom_boxplot()+
+  scale_y_continuous(labels = dollar)+
+  labs(title="Figure 7: View by Price per Square Foot")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+The grade has a curved relationship with price, that as the grade
+increases past 8, there appears to be an exponential increase, whereas
+grades 1 through 6 have a fairly flat line.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=grade, y=price, color = grade))+
+  geom_boxplot()+
+  scale_y_continuous(labels = dollar)+
+  labs(title="Figure 8: Grade by Price")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+When looking at the price per square foot, the grade has more of U
+shape, which could be thrown off by a limited number of lower grades,
+since there is an increasing nature after grade 6.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=grade, y=price_sqft, color = grade))+
+  geom_boxplot()+
+  scale_y_continuous(labels = dollar)+
+  labs(title="Figure 9: Grade by Price per Square Foot")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+When looking at bedrooms by price, there is a somewhat increasing
+pattern that exists as bedrooms increase the price also increases.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=bedrooms, y=price, color = bedrooms))+
+  geom_boxplot()+
+  scale_y_continuous(labels = dollar)+
+  labs(title="Figure 10: Bedrooms by Price")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+After 3 bedrooms the price per square begins to decrease, which I would
+image that inside the city center, 1 bedroom apartments are typically
+expensive by square foot, which is in contradiction to a pure price
+metric, which has different purchasing power.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=bedrooms, y=price_sqft, color = bedrooms))+
+  geom_boxplot()+
+  scale_y_continuous(labels = dollar)+
+  labs(title="Figure 11: Bedrooms by Price per Square Foot")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Bathrooms appear to have an exponential relationship with price.
+
+```{r}
+levels(train_vis$bathrooms)
+```
+
+```{r}
+train_vis%>%
+ggplot(aes(x= bathrooms, y=price, color = bathrooms))+
+  geom_boxplot()+
+  theme_classic()+
+  scale_y_continuous(labels = dollar)+
+  labs(title="Figure 12: Bathrooms by Price")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Whereas the relationship with price per square foot is more linear with
+bathrooms, still showing an increase as bathrooms increase, but not
+nearly as drastic.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=bathrooms, y=price_sqft, color = bathrooms))+
+  geom_boxplot()+
+  scale_y_continuous(labels = dollar)+
+  labs(title="Figure 13: Bathrooms by Price per Square Foot")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Condition appears to have a relationship with price especially with a
+level shift when condition is 3 or above.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=condition, y=price, color = condition))+
+  geom_boxplot()+
+  scale_y_continuous(labels = dollar)+
+  labs(title="Figure 14: Condition by Price")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Condition appears to have a relationship with price per square foot
+especially with a level shift when condition is 3 or above.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=condition, y=price_sqft, color = condition))+
+  geom_boxplot()+
+  scale_y_continuous(labels = dollar)+
+  labs(title="Figure 15: Condition by Price per Square Foot")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Floors appears to have less of a meaningful relationship than the other
+variables when it comes to pure price.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=floors, y=price, color = floors))+
+  geom_boxplot()+
+  scale_y_continuous(labels = dollar)+
+  labs(title="Figure 16: Floors by Price")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+However when looking at price per square foot, with 3 floors it appears
+to increase the price per square foot on average.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=floors, y=price_sqft, color = floors))+
+  geom_boxplot()+
+  scale_y_continuous(labels = dollar)+
+  labs(title="Figure 17: Floors by Price per Square Foot")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+We also wanted to look at the category of a year the house was built,
+grouping together by decade after 1950 and all of those house before.
+There appears to be a normal median across the year built category.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=yr_built_cat, y=price, color = yr_built_cat))+
+  geom_boxplot()+
+  theme_classic()+
+  scale_y_continuous(labels = dollar)+
+  labs(title="Figure 18: Year Built Category by Price")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+However, when we look at price per square foot, it's actually the houses
+before 1950 that have the largest price per square foot and decreases
+from there.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=yr_built_cat, y=price_sqft, color = yr_built_cat))+
+  geom_boxplot()+
+  scale_y_continuous(labels = dollar)+
+  labs(title="Figure 19: Year Built by Price per Square Foot")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+When looking at median income for the area by zip code, it appears that
+those in and around Seattle fall into either Medium or High categories
+on the national average for income. High shows that the price of their
+homes are typically higher than those in the medium.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=Bracket, y=price, color = Bracket))+
+  geom_boxplot()+
+  scale_y_continuous(labels = dollar)+
+  labs(title="Figure 20: Income Bracket by Price of House")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Higher income households also have a higher cost per square foot as
+well.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=Bracket, y=price_sqft, color = Bracket))+
+  geom_boxplot()+
+  scale_y_continuous(labels = dollar)+
+  labs(title="Figure 21: Income Bracket by Price of House")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+We can see that the better the view the higher the density is around
+above a million dollars than in other areas.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=price, color=view))+
+geom_density()+
+scale_x_continuous(labels = dollar)+
+labs(title="Figure 22: Density Plot of Price by View")+
+theme(plot.title = element_text(hjust = 0.5))
+```
+
+When looking at the relationship of price and waterfront, it appear that
+most non-waterfront homes are a million or under, whereas waterfront
+homes have a smoother density plot being above a million dollars. This
+waterfront density plot, looks very similar to the view density plot for
+4, which could mean these variables are correlated.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=price, color=waterfront))+
+geom_density()+
+  theme_classic()+
+scale_x_continuous(labels = dollar)+
+labs(title="Figure 23: Density Plot of Price by Waterfront")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Year built shows that from 1900 - 1950 there is a higher density to be a
+waterfront property, whereas homes after 1960 tend to not be waterfront.
+Given that waterfront is limited to location, it makes sense that
+earlier homes would have been built during this time.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=yr_built, color=waterfront))+
+theme_classic()+
+geom_density()+
+labs(title="Figure 24: Density Plot of Year Built by Waterfront")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+There is a slight difference between high and mid grade when it comes to
+price, when thinking through predicting price or using price as a
+predictor of grade in a binary fashion this assisted in our analysis
+efforts.
+
+```{r}
+train_vis%>%
+ggplot(aes(x=price, color=Bracket))+
+geom_density()+
+scale_x_continuous(labels = dollar)+
+labs(title="Figure 25: Density Plot of Price by Bracket")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+train_vis%>%
+ggplot(aes(x=sqft_living, color=waterfront))+
+  theme_classic()+
+geom_density()+
+labs(title="Figure 26: Density Plot of Sqft Living by Waterfront")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+## Section 3: Linear Regression
+
+### Linear Regression
+
+```{r}
+
+kc_house_data<-read.csv("kc_house_data.csv")
+data<-kc_house_data
+vt$GEOID = as.numeric(vt$GEOID)
+data = merge.data.frame(data, vt[,c(1,4)],by.x = "zipcode" , 
+                          by.y = "GEOID" , all.x = TRUE)
+
+data$waterfront_fac = as.factor(data$waterfront)
+levels(data$waterfront_fac) = c("No","Yes")
+levels(data$waterfront_fac) 
+
+data$median_income = data$estimate
+high = 10^5
+mid = 10^4*7
+data$income_level = ifelse(data$median_income < mid ,'low',
+                             ifelse(data$median_income < high , 'mid', 'high'))
+
+set.seed(1) ##for reproducibility to get the same split
+sample<-sample.int(nrow(data), floor(.80*nrow(data)), replace = F)
+train<-data[sample,] ##training data frame
+test<-data[-sample,] ##test data frame
+
+```
+
+```{r}
+result_p2_v1 = lm(price ~ grade + sqft_living + income_level + 
+                    waterfront_fac +bathrooms  ,train)
+yhat2<-result_p2_v1$fitted.values
+res2<-result_p2_v1$residuals
+
+##add to data frame
+error2<-data.frame(yhat2,res2)
+
+ggplot(error2, aes(x=yhat2,y=res2))+
+  geom_point()+
+  geom_hline(yintercept=0, color="red")+
+  labs(x="Fitted y", y="Residuals", title="Figure 27: Residual Plot of Basic Model")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+From the residual plot of the model containing income level, grade, square foot living, bathrooms, and waterfront (factors) as predictors, we can deduce that assumptions 1 & 2 are violated. Therefore, we need to transform both response and predictors to satisfy the regression assumptions.
+
+```{r}
+boxcox(result_p2_v1)
+boxcox(result_p2_v1, lambda = seq(-1,1,1/10))
+```
+
+We first use a boxcox plot to verify the target lambda value. Since lambda = 0, we need to conduct a log transform of the response variable (price). 
+
+```{r}
+train$log_price = log(train$price)
+result_p2_v2 = lm(log_price ~ grade + sqft_living + income_level + 
+                    waterfront_fac + bathrooms  ,train)
+yhat3<-result_p2_v2$fitted.values
+res3<-result_p2_v2$residuals
+
+##add to data frame
+error3<-data.frame(yhat3,res3)
+
+ggplot(error3, aes(x=yhat3,y=res3))+
+  geom_point()+
+  geom_hline(yintercept=0, color="red")+
+  labs(x="Fitted y", y="Residuals", title="Figure 28: Residual Plot of Transformed Response Var")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+We can see that the means of the residuals are 0. Hence, we can conclude that assumption 1 has been met. However, the variance of the residuals is still not constant across the transformed response variable. We need a transformation on the predictor variables to satisfy the other assumption. 
+
+```{r}
+ggplot(train,aes(x = as.factor(grade),y = log_price))+
+  geom_boxplot()+
+labs(y="log_price", x="grade", title="Figure 29: Grade against Log(Price)")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(train,aes(x = as.factor(bathrooms),y = log_price))+
+  geom_boxplot()+
+labs(y="log_price", x="bathrooms", title="Figure 30: Bathrooms against Log(Price)")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(train,aes(x = income_level,y = (log_price)))+
+  geom_boxplot()+
+labs(y="log_price", x="income", title="Figure 31: Income Level against Log(Price)")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(train,aes(x = (sqft_living) ,y = log_price))+
+  geom_point()+
+labs(y="log_price", x="sqft_living", title="Figure 32: Sqft_Living against Log(Price)")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(train,aes(x = (waterfront_fac) ,y = log_price))+
+  geom_boxplot()+
+labs(y="log_price", x="Waterfront", title="Figure 33: Waterfront against Log(Price)")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Evidently, the plot of log_price vs. sqft_living resembles a cube-root function. 
+We will therefore transform the sqft_living predictor and recheck the residuals to assess whether the assumptions have been met.
+
+```{r}
+train$sqft_living_transformed = (train$sqft_living)^(1/3)
+
+ggplot(train,aes(x = (sqft_living_transformed) ,y = log_price))+
+  geom_point()+
+labs(y="log_price", x="sqft_living_transformed", title="Figure 34: CubeRoot(Sqft_Living) against Log(Price)")+
+theme(plot.title = element_text(hjust = 0.5))
+```
+
+Now, the plot indicates a linear relationship after the cube root transformation
+of the sqft_living predictor. Let's check the residuals of this model: 
+
+```{r}
+result_p2_v3 = lm(log_price ~ grade + sqft_living_transformed + income_level + 
+                    waterfront_fac + bathrooms  ,train)
+yhat4<-result_p2_v3$fitted.values
+res4<-result_p2_v3$residuals
+
+##add to data frame
+error4<-data.frame(yhat4,res4)
+
+ggplot(error4, aes(x=yhat4,y=res4))+
+  geom_point()+
+  geom_hline(yintercept=0, color="red")+
+  labs(x="Fitted y", y="Residuals", title="Figure 35: Residual Plot of Transformed Model")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+The residuals now display constant variance. We no longer violate assumptions 1 & 2 of the linear regression. 
+
+```{r}
+#Correlation plots 
+round(cor(train[,c("grade","sqft_living_transformed","median_income","bathrooms","waterfront")]),2)
+```
+
+From the correlation plots, we can see that sqft_living_transformed, grade and bathrooms are strongly correlated. In other words, they are providing the same information to the model for prediction. We will now create partial regression plots for each of the correlated predictors to assess if they are required.
+
+```{r}
+#Partial Regression plots 
+#Models
+result_nograde =  lm(log_price ~ sqft_living_transformed + income_level + 
+                    waterfront_fac + bathrooms ,train)
+result_nograde_2 =  lm(grade ~ sqft_living_transformed + income_level + 
+                    waterfront_fac + bathrooms ,train)
+result_nobathrooms = lm(log_price ~ grade + sqft_living_transformed + income_level + waterfront_fac ,train)
+result_nobathrooms_2 = lm(bathrooms ~ grade + sqft_living_transformed + income_level + waterfront_fac ,train)
+result_nosqft = lm(log_price ~ grade  + income_level + 
+                    waterfront_fac + bathrooms ,train)
+result_nosqft_2 = lm(sqft_living_transformed ~ grade  + income_level + 
+                    waterfront_fac + bathrooms ,train)
+#Plot without Grade
+res_i1 = result_nograde$residuals
+res_i2 = result_nograde_2$residuals
+res_parti = data.frame(res_i1,res_i2)
+ggplot(res_parti, aes(x=res_i2,y=res_i1))+
+  geom_point()+
+  geom_smooth(method=lm, se=FALSE)+
+  labs(x="Residuals_Grade", y="Residuals", title="Figure 36: Partial Regression Plot of Grade")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+```{r}
+res_i1 = result_nobathrooms$residuals
+res_i2 = result_nobathrooms_2$residuals
+res_parti = data.frame(res_i1,res_i2)
+ggplot(res_parti, aes(x=res_i2,y=res_i1))+
+  geom_point()+
+  geom_smooth(method=lm, se=FALSE)+
+  labs(x="Residuals_Bathrooms", y="Residuals", title="Figure 37: Partial Regression Plot of Bathrooms")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+```{r}
+res_i1 = result_nosqft$residuals
+res_i2 = result_nosqft_2$residuals
+res_parti = data.frame(res_i1,res_i2)
+ggplot(res_parti, aes(x=res_i2,y=res_i1))+
+  geom_point()+
+  geom_smooth(method=lm, se=FALSE)+
+  labs(x="Residuals_SqFt", y="Residuals", title="Figure 38: Partial Regression Plot of Square Feet")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+From the three partial regression plots, it is clear that grade and sqft have a linear relationship with the price. The lack of any curvature confirms this and removes the need to consider any non-linear terms. On the other hand, the bathrooms variable does not display a linear relationship. We therefore drop the predictor from our pricing model.
+
+```{r}
+result_p2_v4 = lm(log_price ~ grade + sqft_living_transformed + income_level + 
+                    waterfront_fac,train)
+yhat5<-result_p2_v4$fitted.values
+res5<-result_p2_v4$residuals
+
+##add to data frame
+error5<-data.frame(yhat5,res5)
+
+ggplot(error5, aes(x=yhat5,y=res5))+
+  geom_point()+
+  geom_hline(yintercept=0, color="red")+
+  labs(x="Fitted y", y="Residuals", title="Figure 39: Residual Plot of Model w/o Bathrooms")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+qqnorm(res, main="Figure 40: Normal Q-Q Plot")
+qqline(res, col="red")
+```
+```{r}
+acf(res, main="Figure 41: ACF Plot of Residuals")
+#VIF
+round(vif(result_p2),3)
+```
+
+Plotting the ACF & QQ charts for the final model, we can see that assumptions 3 & 4 for linear regression are satisfied. Hence, we will proceed to check the model with the levene test, standardized residuals, studentized residuals, externally studentized residuals, the PRESS statistic, Cook's distance, DFFITS, and DFBETAS.
+
+```{r}
+levene.test(train$log_price,train$income_level)
+levene.test(train$log_price,train$waterfront_fac)
+```
+
+The null hypothesis for the levene's test states that the variance of the response
+variable is constant across all levels of the categorical predictor. As the p-value is greater than 5% for income level, we fail to reject the null, and can conclude that the variance is the same across income levels.
+
+However, this is not the case with the waterfront predictor. The corresponding p-value of approximately 0% compels us to reject the null that there is constant variance across categories. Looking deeper into the dataset, we see that we have an unbalanced sample size for properties that overlook the waterfront in our dataset (less than 200 entries). Thus, we need to check the ratio of the variance of the two groups to conclude whether to drop the predictor. 
+
+```{r}
+var(train[train$waterfront_fac == "Yes","log_price"])/var(train[train$waterfront_fac == "No","log_price"])
+```
+
+The ratio of variances for the two waterfront predictor groups is 1.75. Given the degree of unbalance we have in the training dataset, we expect this to be a tolerable ratio, and decide to keep the waterfront categorical predictor in the final model. 
+
+```{r}
+standard.res<-res/summary(result_p2_v4)$sigma
+student.res<-rstandard(result_p2_v4)
+ext.student.res<-rstudent(result_p2_v4)
+res.frame<-data.frame(res,standard.res,student.res,ext.student.res)
+
+par(mfrow=c(1,3))
+plot(result_p2_v4$fitted.values,standard.res,
+main="Figure 42: Standardized Res",
+ylim=c(-4.5,4.5))
+plot(result_p2_v4$fitted.values,student.res,
+main="Figure 43: Studentized Res",
+ylim=c(-4.5,4.5))
+plot(result_p2_v4$fitted.values,ext.student.res,
+main="Figure 44: Externally Studentized Res",
+ylim=c(-4.5,4.5))
+```
+```{r}
+result_p2_v4
+```
+```{r}
+n<-dim(train)[1]
+p<- 6
+crit<-qt(1-0.05/(2*n), n-p-1)
+ext.student.res[abs(ext.student.res)>crit]
+```
+
+Dividing the residuals by an estimate of their standard deviation eliminates any associated units to the response variable. This enables us to calculate standardized thresholds that determine whether any residuals are large enough to be considered extreme datapoints. Generally, the recognized threshold is 2 or 2.5. The absolute value of a studentized residual that exceeds this threshold can be considered a genuine outlier. According to this statement, we have outliers in the dataset.
+
+```{r}
+lev<-lm.influence(result_p2_v4)$hat 
+length(lev[lev>2*p/n])
+```
+
+There are 510 influential observations.
+
+```{r}
+##cooks distance
+COOKS<-cooks.distance(result_p2_v4)
+COOKS[COOKS>qf(0.5,p,n-p)]
+
+##dffits
+DFFITS<-dffits(result_p2_v4)
+length(DFFITS[abs(DFFITS)>2*sqrt(p/n)])
+
+##dfbetas
+DFBETAS<-dfbetas(result_p2_v4)
+dfb = data.frame(abs(DFBETAS)>2/sqrt(n))
+sum(dfb$X.Intercept.)
+sum(dfb$grade)
+sum(dfb$sqft_living_transformed)
+sum(dfb$income_levellow)
+sum(dfb$income_levelmid)
+sum(dfb$waterfront_facYes)
+```
+
+There are 688 observations that are influential according to DFFITS. 
+
+According to DFBETAS, we have 1125 datapoints influencing the intercept, 984 datapoints influencing the coefficient for grade predictor, 1073 datapoints influencing the coefficient for sqft_living_transformed predictor, 951 datapoints influencing the coefficient for income_level (low) predictor, 718 datapoints influencing the coefficient for income_level (mid) predictor, 718 datapoints influencing the coefficient for waterfront (yes) predictor.
+
+Next, we analyze the data subset without high leverage, influential or outlier datapoints:
+
+```{r}
+train_check = train
+train_check = cbind(train_check,res.frame,lev,DFFITS)
+train_check$outlier = ifelse(abs(train_check$standard.res) > 2.5,1,0)
+train_check$high_lev  = ifelse(train_check$lev > 2*p/n ,1,0)
+train_check$influence = ifelse(abs(train_check$DFFITS) > 2*sqrt(p/n) ,1,0)
+
+train_subset = train_check[train_check$outlier == 0 &
+                               train_check$high_lev == 0 &
+                               train_check$influence == 0 ,]
+
+result_subset = lm(log_price ~ grade + sqft_living_transformed + income_level,train_subset)
+result_subset
+```
+
+We ran a regression model on the data subset without high leverage, influential or outlier datapoints and found the model coefficients to be approximately identical to those of the full model apart from that of the waterfront predictor. Therefore, the waterfront predictor is removed from the subset model because the data subset no longer contains any properties by the waterfront. 
+
+In conclusion, we decided to proceed with the full dataset and the corresponding model created.
+
+```{r}
+PRESS = function(model) {
+hat = lm.influence(model)$hat
+res = model$residuals
+Pressi = ((res/(1 - hat)))^2
+press = sum(Pressi)
+return(press)
+}
+press_value = PRESS(result_p2_v4)
+print('PRESS Statistic')
+press_value
+sst = sum(anova(result_p2_v4)$`Sum Sq`)
+Rpred = 1 - (press_value/sst)
+print('R-square prediction')
+Rpred
+print('R-square')
+summary(result_p2_v4)$r.squared
+```
+
+The prediction R squared value can be utilized to evaluate how well our model performs on new observations. It also represents the proportion of the variation in the response variable (price) on new observations that can be explained by our model.
+
+The difference between our prediction R squared value and our R squared value is minute. The lack of a huge difference between these two values signifies that overfitting is not a valid concern within our model.
+
+```{r}
+test$log_price = log(test$price)
+test$sqft_living_transformed = (test$sqft_living)^(1/3)
+test$predict = predict(result_p2_v4,test)
+test$err = test$log_price - test$predict
+
+print('Mean Square error for test dataset')
+sum((test$err)^2)/nrow(test)
+
+print('Mean Square error for training dataset')
+sum((res5)^2)/nrow(train)
+```
+
+```{r}
+confint(result_p2_v4, level=0.95)
+```
+
+An evaluation of the mean-squared error (MSE) of our validation set reinforces our earlier statement regarding the significance of the similarity between both R squared values. The training MSE represents the average squared error of predictions on the observations that were used to train the method. Similarly, the test MSE represents the average squared error of predictions on observations that were not used to train the model. In this case, the 0.1% discrepancy between the two values validates the stability of our model.
+
+As illustrated, none of the confidence intervals for regression coefficients include 0. This indicates that the regression coefficients are significantly different from one another. Based on these observations, we can speculate that each predictor is robust.
+
+## Section 4: Logistical Regression
+
+### Logistical Regression
+
+```{r}
+log_data <- data_all
+set.seed(1) ##for reproducibility to get the same split
+sample_log<-sample.int(nrow(log_data), floor(.80*nrow(log_data)), replace = F)
+train_log<-log_data[sample_log,] ##training data frame
+test_log<-log_data[-sample_log,] ##test data frame
+```
+
+#### Logistical regression on Waterfront
+
+#### Other Logistical Model Consideration: 
+
+Our final logistical regression model is focused on waterfront
+properties and what variables have the most predictive power. At first
+we considered view, as a binary of Low and High, as well as condition as
+low and high. After running a battery of tests to each of these models,
+including waterfront, the model with the best predictive power is
+waterfront based on the tests we ran (ROC, AUC, and confusion matrix).
+Ultimately, the motivations are the same, what determines the quality of
+the home. Grade unfortunately was challenging to predict even after
+running automatic processes. View is similar to waterfront, as
+waterfront is not graded less than a 2 in the view category and
+waterfront we were able to build a better model for.
+
+#### Variables considered in Waterfront Logistical Regression: 
+
+-   **Price** and **price per square foot**: when we tested these
+    variables in the model, when both were in one ended up becoming
+    insignificant, while the other remained significant, indicating that
+    the two variables are correlated. After going through multiple
+    iterations our team found that the model preferred using price by
+    AIC score and other variables being significant.
+
+-   **View**: Our team decided not to use view even though it is a great
+    predictor of waterfront because in real life scenarios it is too
+    correlated with waterfront properties especially in the Seattle area
+    where you are near the Pacific Ocean.
+
+-   **Floors:** When testing floors our team found that it is
+    insignificant in the model, therefore we dropped it.
+
+-   **Bedrooms** and **bathrooms**: These variables are highly
+    correlated with the square foot of the living space (sqft_living) ,
+    which means we had to make a decision between using sqft_living or
+    those two variables, we went with the single sqft_living variable to
+    keep the model simple and not decrease accuracy.
+
+-   **Grade:** When testing grade it did not provided additional
+    accuracy to our model, therefore we dropped it.
+
+-   **Condition:** When testing condition it did not provided additional
+    accuracy to our model, therefore we dropped it.
+
+```{r}
+result_glm <-glm(waterfront ~ price+sqft_living+Bracket+yr_built, family = "binomial", data=train_log)
+```
+
+```{r}
+summary(result_glm)
+```
+
+-   Ho : B1 = B2 = B3 = B4 = B5 = B6 = B7 = 0
+
+-   Ha : at least one of the coefficients in H0 is not zero
+
+```{r}
+##test if coefficients for all 7 predictors are 0
+##test stat
+TS_waterfront<-result_glm$null.deviance-result_glm$deviance
+pvalue <-1-pchisq(TS_waterfront,4)
+results <- as.data.frame(rbind(TS_waterfront,pvalue))
+rownames(results) <- c("Critical value", "p-value")
+colnames(results) <- c("Value")
+results
+```
+
+We receive a low p-value, we reject the null hypothesis. The 7-predictor model is chosen over the intercept-only model; the 7-predictor model is useful.
+
+```{r}
+coefficients <- as.data.frame(coef(summary(result_glm))[,1])
+colnames(coefficients) <- c('coefficients')
+coefficients <- coefficients%>%mutate('log_odds' = exp(coefficients))
+coefficients <- coefficients%>%mutate('probability' = exp(coefficients)/(1+exp(coefficients)))
+colnames(coefficients) <- c("Coefficients","Log odd", "Probability")
+coefficients <- coefficients[-1,]
+coefficients
+```
+
+From the table above we can see the impact that each predictor is having in estimating the odds of a house having a waterfront:
+
+- Price apparently has a small impact but this is due to the scale in which it is in comparison to the other predictors. We can see that for every dollar increase in price, the odds of being a waterfront property multiplies by 1.0000033.
+
+- The living area practically has no effect on the odds of the house having a waterfront. Nonetheless, the odds that we are seeing help correct for big houses that, as we have seen in the EDA, rarely have a waterfront.
+
+- Being located in a middle income location significantly improves the odds of the house having a waterfront. While it may seem counter intuitive, when we did the EDA we pointed out that there were 2.5 more properties with a waterfront in middle income locations than in high income locations. This would explain the negative impact.
+
+- Finally, as properties are newer, the odds of having a waterfront are reduced, multiplying by 0.99 for each additional year. As we have seen in the EDA, properties with a waterfront on average where built in 1959 while the ones without a waterfront in 1970. Which from a practical perspective makes sense because there only exists a limited number of spaces with waterfront.
+
+```{r}
+##predicted survival rate for test data based on training data
+preds<-predict(result_glm, newdata=test_log, type="response")
+```
+
+```{r}
+auc_waterfront<-performance(rates, measure = "auc")
+confusion <- table(test_log$waterfront, preds>0.006)
+auc <- auc_waterfront@y.values
+error_rate <- (confusion[1,2]+confusion[2,1])/(sum(confusion))
+FPR <- confusion[1,2]/(confusion[1,1]+confusion[1,2])
+FNR <- confusion[2,1]/(confusion[2,1]+confusion[2,2])
+Sensitivity <- 1 - FNR
+Specificity <- 1 - FPR
+results <- as.data.frame(rbind(error_rate, FPR, FNR, Sensitivity, Specificity))
+rownames(results) <- c("Overall error rate", "False positive rate", "False negative rate", "Sensitivity", "Specificity")
+results$V1 <- round(results$V1,2)
+colnames(results) <- c("Value")
+confusion
+results
+```
+
+Given that our data only has 0.8% of the observations with a waterfront, we chose a small threshold. If we had chosen the typical 0.5 threshold, we would have achieved a 1% overall error rate but a sensitivity of only 0.6%. At a threshold of 0.006 we were able to obtain a 89% sensitivity and an 78% specificity with an error rate of 22%.
+
+```{r}
+##transform the input data into a format that is suited for the
+##performance() function
+rates <- prediction(preds, test_log$waterfront)
+```
+
+```{r}
+##store the true positive and false positive rates
+roc_result <- performance(rates ,measure="tpr", x.measure="fpr")
+```
+
+```{r}
+##plot ROC curve and overlay the diagonal line for random guessing
+plot(roc_result, main="Figure 45: ROC Curve (Waterfront)")
+lines(x = c(0,1), y = c(0,1), col="red")
+points(x = Specificity, y = Sensitivity)
+```
+
+Additionally, we can see that at our defined threshold, the TPR and the FPR lie above the random chance diagonal, indicating that our model is better than chance at predicting if a property has a waterfront or not.
